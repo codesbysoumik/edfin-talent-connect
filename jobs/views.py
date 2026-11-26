@@ -1,7 +1,14 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, viewsets
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.response import Response
+
+from applications.models import Application
+from applications.permissions import IsStudent
+from matching.services import calculate_match
+from profiles.models import StudentProfile
 
 from .filters import JobPostFilter
 from .models import JobPost
@@ -29,7 +36,11 @@ class JobPostViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve"):
+        if self.action == "recommended":
+            permission_classes = (IsStudent,)
+        elif self.action == "matches":
+            permission_classes = (IsEmployer, IsJobOwner)
+        elif self.action in ("list", "retrieve"):
             permission_classes = (permissions.AllowAny,)
         elif self.action == "create":
             permission_classes = (IsEmployer,)
@@ -45,3 +56,64 @@ class JobPostViewSet(viewsets.ModelViewSet):
         if not employer.is_verified:
             raise PermissionDenied("Only verified employers can post jobs.")
         serializer.save(employer=employer)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="recommended",
+        permission_classes=(IsStudent,),
+    )
+    def recommended(self, request):
+        try:
+            student_profile = (
+                StudentProfile.objects.prefetch_related("skills")
+                .get(user=request.user)
+            )
+        except StudentProfile.DoesNotExist as error:
+            raise ValidationError("Student profile is required.") from error
+
+        jobs = self.get_queryset().filter(is_active=True)
+        results = []
+        for job in jobs:
+            result = calculate_match(student_profile, job)
+            results.append(
+                {
+                    "job_id": job.id,
+                    "title": job.title,
+                    "job_type": job.job_type,
+                    "location": job.location,
+                    **result,
+                }
+            )
+        results.sort(key=lambda item: (-item["match_score"], item["title"]))
+        return Response(results)
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="matches",
+        permission_classes=(permissions.IsAuthenticated, IsEmployer, IsJobOwner),
+    )
+    def matches(self, request, *args, **kwargs):
+        job = self.get_object()
+        applications = (
+            Application.objects.filter(job=job)
+            .select_related("student", "student__student_profile")
+            .prefetch_related("student__student_profile__skills")
+        )
+        results = []
+        for application in applications:
+            try:
+                student_profile = application.student.student_profile
+            except AttributeError:
+                continue
+            result = calculate_match(student_profile, job)
+            results.append(
+                {
+                    "application_id": application.id,
+                    "student_id": application.student_id,
+                    **result,
+                }
+            )
+        results.sort(key=lambda item: -item["match_score"])
+        return Response(results)

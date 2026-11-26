@@ -7,7 +7,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from profiles.models import EmployerProfile, Skill
+from applications.models import Application
+from profiles.models import EmployerProfile, Skill, StudentProfile
 
 from .models import JobPost
 
@@ -36,6 +37,21 @@ def make_job(employer, **overrides):
     }
     values.update(overrides)
     return JobPost.objects.create(**values)
+
+
+def make_student(email, skills=(), cgpa=Decimal("3.50")):
+    user = User.objects.create_user(email, "password123")
+    profile = StudentProfile.objects.create(
+        user=user,
+        full_name="Student",
+        university="University",
+        department="Department",
+        cgpa=cgpa,
+    )
+    profile.skills.set(
+        [Skill.objects.get_or_create(name=skill.lower())[0] for skill in skills]
+    )
+    return user
 
 
 def test_verified_employer_can_create_job():
@@ -178,3 +194,85 @@ def test_job_list_avoids_n_plus_one_queries(django_assert_num_queries):
 
     assert response.status_code == 200
     assert len(response.data["results"]) == 2
+
+
+def test_recommended_jobs_are_ranked_with_explainable_match_data():
+    employer = make_employer("recommended-employer@example.com")
+    python = Skill.objects.create(name="Python")
+    student = make_student("recommended-student@example.com", skills=("Python",))
+    matching_job = make_job(employer, title="Matching Job")
+    matching_job.required_skills.add(python)
+    make_job(employer, title="No Skills Job")
+    client = APIClient()
+    client.force_authenticate(student)
+
+    response = client.get(reverse("job-recommended"))
+
+    assert response.status_code == 200
+    assert [item["title"] for item in response.data] == [
+        "Matching Job",
+        "No Skills Job",
+    ]
+    assert response.data[0]["match_score"] == 1.0
+    assert response.data[0]["matched_skills"] == ["python"]
+    assert response.data[0]["missing_skills"] == []
+
+
+def test_recommended_jobs_do_not_issue_n_plus_one_queries(django_assert_num_queries):
+    employer = make_employer("recommended-query-employer@example.com")
+    student = make_student("recommended-query-student@example.com", skills=("Python",))
+    skill = Skill.objects.get(name="python")
+    first = make_job(employer, title="First Recommended")
+    second = make_job(employer, title="Second Recommended")
+    first.required_skills.add(skill)
+    second.required_skills.add(skill)
+    client = APIClient()
+    client.force_authenticate(student)
+
+    with django_assert_num_queries(4):
+        response = client.get(reverse("job-recommended"))
+
+    assert response.status_code == 200
+    assert len(response.data) == 2
+
+
+def test_job_matches_rank_applicants_for_the_job_owner():
+    employer = make_employer("matches-employer@example.com")
+    python = Skill.objects.create(name="Python")
+    first_student = make_student("first-matcher@example.com", skills=("Python",))
+    second_student = make_student("second-matcher@example.com", skills=("Java",))
+    job = make_job(employer, title="Matching Applicants")
+    job.required_skills.add(python)
+    Application.objects.create(student=second_student, job=job)
+    Application.objects.create(student=first_student, job=job)
+    client = APIClient()
+    client.force_authenticate(employer)
+
+    response = client.get(reverse("job-matches", args=[job.id]))
+
+    assert response.status_code == 200
+    assert [item["student_id"] for item in response.data] == [
+        first_student.id,
+        second_student.id,
+    ]
+    assert response.data[0]["match_score"] == 1.0
+    assert response.data[1]["match_score"] == 0.0
+
+
+def test_job_matches_do_not_issue_n_plus_one_queries(django_assert_num_queries):
+    employer = make_employer("matches-query-employer@example.com")
+    skill = Skill.objects.create(name="Python")
+    first_student = make_student("first-query-matcher@example.com", skills=("Python",))
+    second_student = make_student("second-query-matcher@example.com", skills=("Java",))
+    job = make_job(employer, title="Query Matching Applicants")
+    job.required_skills.add(skill)
+    Application.objects.create(student=first_student, job=job)
+    Application.objects.create(student=second_student, job=job)
+    client = APIClient()
+    client.force_authenticate(employer)
+
+    with django_assert_num_queries(4):
+        response = client.get(reverse("job-matches", args=[job.id]))
+
+    assert response.status_code == 200
+    assert len(response.data) == 2
