@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "django_filters",
+    "drf_spectacular",
     "accounts",
     "profiles",
     "jobs",
@@ -135,10 +136,31 @@ MAILERS = {
 AUTH_USER_MODEL = "accounts.User"
 
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_THROTTLE_RATES": {
         "auth": "10/minute",
+    },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "EdFin Talent Connect API",
+    "DESCRIPTION": "Campus talent portal API for students and employers.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
+    "SECURITY": [{"bearerAuth": []}],
+    "ENUM_NAME_OVERRIDES": {
+        "ApplicationStatusEnum": "applications.models.Application.Status",
     },
 }

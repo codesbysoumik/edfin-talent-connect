@@ -11,11 +11,9 @@ def calculate_match(student_profile, job):
     if cgpa_ineligible:
         match_score = 0.0
     elif not required_skills:
-        match_score = 1.0
+        match_score = 100.0
     else:
-        match_score = round(
-            len(matched_skills) / len(student_skills | required_skills), 2
-        )
+        match_score = round(len(matched_skills) / len(required_skills) * 100, 2)
 
     return {
         "match_score": match_score,

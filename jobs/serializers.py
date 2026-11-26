@@ -38,3 +38,21 @@ class JobPostSerializer(serializers.ModelSerializer):
         if value is not None and not 0 <= value <= 4:
             raise serializers.ValidationError("Minimum CGPA must be between 0 and 4.")
         return value
+
+
+class RecommendedJobSerializer(serializers.Serializer):
+    job_id = serializers.IntegerField()
+    title = serializers.CharField()
+    job_type = serializers.CharField()
+    location = serializers.CharField()
+    match_score = serializers.FloatField()
+    matched_skills = serializers.ListField(child=serializers.CharField())
+    missing_skills = serializers.ListField(child=serializers.CharField())
+
+
+class JobMatchSerializer(serializers.Serializer):
+    application_id = serializers.IntegerField()
+    student_id = serializers.IntegerField()
+    match_score = serializers.FloatField()
+    matched_skills = serializers.ListField(child=serializers.CharField())
+    missing_skills = serializers.ListField(child=serializers.CharField())

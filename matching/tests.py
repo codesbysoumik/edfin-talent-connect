@@ -58,20 +58,28 @@ def test_full_skill_match():
     profile, job = make_match_data(["python", "django"], ["python", "django"])
 
     assert calculate_match(profile, job) == {
-        "match_score": 1.0,
+        "match_score": 100.0,
         "matched_skills": ["django", "python"],
         "missing_skills": [],
     }
 
 
-def test_partial_skill_match_uses_jaccard_overlap():
+def test_partial_skill_match_uses_required_skill_coverage():
     profile, job = make_match_data(["python", "sql"], ["python", "django"])
 
     assert calculate_match(profile, job) == {
-        "match_score": 0.33,
+        "match_score": 50.0,
         "matched_skills": ["python"],
         "missing_skills": ["django"],
     }
+
+
+def test_extra_student_skills_do_not_reduce_full_coverage():
+    profile, job = make_match_data(
+        ["python", "django", "sql", "docker", "git"], ["python", "django"]
+    )
+
+    assert calculate_match(profile, job)["match_score"] == 100.0
 
 
 def test_zero_skill_overlap():
@@ -99,7 +107,7 @@ def test_job_with_no_required_skills_is_fully_eligible():
     profile, job = make_match_data(["python"], [])
 
     assert calculate_match(profile, job) == {
-        "match_score": 1.0,
+        "match_score": 100.0,
         "matched_skills": [],
         "missing_skills": [],
     }

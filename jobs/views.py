@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -14,9 +15,58 @@ from .filters import JobPostFilter
 from .models import JobPost
 from .pagination import JobPostPagination
 from .permissions import IsEmployer, IsJobOwner
-from .serializers import JobPostSerializer
+from .serializers import (
+    JobMatchSerializer,
+    JobPostSerializer,
+    RecommendedJobSerializer,
+)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List active jobs",
+        responses=JobPostSerializer(many=True),
+        tags=["jobs"],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a job",
+        responses=JobPostSerializer,
+        tags=["jobs"],
+    ),
+    create=extend_schema(
+        summary="Create a job as a verified employer",
+        request=JobPostSerializer,
+        responses={201: JobPostSerializer},
+        tags=["jobs"],
+    ),
+    update=extend_schema(
+        summary="Replace an owned job",
+        request=JobPostSerializer,
+        responses=JobPostSerializer,
+        tags=["jobs"],
+    ),
+    partial_update=extend_schema(
+        summary="Update an owned job",
+        request=JobPostSerializer,
+        responses=JobPostSerializer,
+        tags=["jobs"],
+    ),
+    destroy=extend_schema(
+        summary="Delete an owned job",
+        responses={204: None},
+        tags=["jobs"],
+    ),
+    recommended=extend_schema(
+        summary="List jobs recommended for the student",
+        responses=RecommendedJobSerializer(many=True),
+        tags=["matching"],
+    ),
+    matches=extend_schema(
+        summary="Rank applicants for an owned job",
+        responses=JobMatchSerializer(many=True),
+        tags=["matching"],
+    ),
+)
 class JobPostViewSet(viewsets.ModelViewSet):
     queryset = JobPost.objects.select_related(
         "employer", "employer__user"

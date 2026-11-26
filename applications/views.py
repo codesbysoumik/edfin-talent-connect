@@ -1,4 +1,9 @@
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -22,7 +27,19 @@ from .services import (
     transition_application_status,
 )
 
+APPLICATION_ID_PARAMETER = OpenApiParameter(
+    name="id",
+    type=int,
+    location=OpenApiParameter.PATH,
+)
 
+
+@extend_schema(
+    summary="Apply to an active job",
+    request=ApplySerializer,
+    responses={201: ApplicationSerializer},
+    tags=["applications"],
+)
 class ApplyView(generics.CreateAPIView):
     serializer_class = ApplySerializer
     permission_classes = (IsStudent,)
@@ -45,6 +62,32 @@ class ApplyView(generics.CreateAPIView):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List the caller's applications",
+        responses=ApplicationSerializer(many=True),
+        tags=["applications"],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an application the caller may access",
+        responses=ApplicationSerializer,
+        parameters=[APPLICATION_ID_PARAMETER],
+        tags=["applications"],
+    ),
+    update_status=extend_schema(
+        summary="Update an application status",
+        request=ApplicationStatusSerializer,
+        responses=ApplicationSerializer,
+        parameters=[APPLICATION_ID_PARAMETER],
+        tags=["applications"],
+    ),
+    history=extend_schema(
+        summary="List an application's status history",
+        responses=ApplicationStatusHistorySerializer(many=True),
+        parameters=[APPLICATION_ID_PARAMETER],
+        tags=["applications"],
+    ),
+)
 class ApplicationViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,

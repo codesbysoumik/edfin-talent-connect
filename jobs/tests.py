@@ -213,7 +213,7 @@ def test_recommended_jobs_are_ranked_with_explainable_match_data():
         "Matching Job",
         "No Skills Job",
     ]
-    assert response.data[0]["match_score"] == 1.0
+    assert response.data[0]["match_score"] == 100.0
     assert response.data[0]["matched_skills"] == ["python"]
     assert response.data[0]["missing_skills"] == []
 
@@ -255,7 +255,7 @@ def test_job_matches_rank_applicants_for_the_job_owner():
         first_student.id,
         second_student.id,
     ]
-    assert response.data[0]["match_score"] == 1.0
+    assert response.data[0]["match_score"] == 100.0
     assert response.data[1]["match_score"] == 0.0
 
 

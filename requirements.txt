@@ -2,7 +2,9 @@ asgiref==3.13.0
 Django==6.1.2
 djangorestframework==3.18.3
 django-filter
+drf-spectacular
 djangorestframework-simplejwt
+Faker
 pytest
 pytest-django
 ruff
